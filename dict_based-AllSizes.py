@@ -185,12 +185,7 @@ file_path1 = '../data/1_binary_landscapes.txt' #80 000
 file_path2 = '../data/10_computable_moments.txt' #1 000
 file_path3 = '../data/11_randomizing_paintings.txt' #90 000
 file_path4 = '../data/110_oily_portraits.txt' #80 000
-file_path5 = '../data/11_30000.txt' #30 000
-file_path6 = '../data/1000.txt' #1 000
-file_path7 = '../data/2000.txt' #2 000
-file_path8 = '../data/4000.txt' #4 000
-file_path9 = '../data/8000-p.txt' #8 000
-file_path10 = '../data/15000.txt' #15 000
+
 
 
 
