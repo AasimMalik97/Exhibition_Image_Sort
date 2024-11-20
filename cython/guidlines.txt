@@ -1,0 +1,26 @@
+Guidelines for Tuning
+Small Datasets (<5,000 rows)
+
+    comparison_limit: Use higher values (e.g., 30 or 50).
+    lookahead: Use higher values (e.g., 10 or 20).
+    Why: The smaller size allows for more exhaustive comparisons without significant runtime penalties.
+
+Medium Datasets (5,000 - 50,000 rows)
+
+    comparison_limit: Moderate values (e.g., 20).
+    lookahead: Moderate values (e.g., 5 or 10).
+    Why: Striking a balance between runtime and accuracy becomes essential.
+
+Large Datasets (>50,000 rows)
+
+    comparison_limit: Lower values (e.g., 10).
+    lookahead: Lower values (e.g., 3 or 5).
+    Why: Runtime optimization is critical, and small sacrifices in accuracy may be acceptable.
+
+
+for portrati 80k
+comparision limit = 1000
+lookahead =16000
+
+score 408170
+time 725 = 12 min
