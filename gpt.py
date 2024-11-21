@@ -1,103 +1,128 @@
-import json
+import os
 
+def calculate_local_satisfaction(f1, f2):
+    """Calculate the Local Robotic Satisfaction between two frameglasses."""
+    common = len(f1 & f2)
+    f1_diff = len(f1 - f2)
+    f2_diff = len(f2 - f1)
+    return min(common, f1_diff, f2_diff)
 
-def process_large_file(file_path, output_path):
-    """Processes a file to maximize Global Robotic Satisfaction."""
+def pair_portraits_optimized(portraits):
+    """Pair portraits greedily with reduced complexity."""
+    portrait_frameglasses = []
+
+    # Sort portraits by tag set size (heuristic for diverse pairing)
+    portraits = sorted(portraits, key=lambda x: len(x[1]))
+
+    while len(portraits) > 1:
+        # Always pick the smallest portrait (most unique tags)
+        p1 = portraits.pop(0)
+
+        # Find the portrait that maximizes diversity with p1
+        best_match = None
+        best_diversity = -1
+        best_index = -1
+
+        for idx, p2 in enumerate(portraits):
+            diversity = len(p1[1] | p2[1])  # Union of tags
+            if diversity > best_diversity:
+                best_diversity = diversity
+                best_match = p2
+                best_index = idx
+
+        # Combine p1 and best_match into a frameglass
+        combined_indices = p1[0] + best_match[0]
+        combined_tags = p1[1] | best_match[1]
+        portrait_frameglasses.append((combined_indices, combined_tags))
+
+        # Remove the matched portrait
+        portraits.pop(best_index)
+
+    # Add any leftover single portrait as a frameglass
+    if portraits:
+        portrait_frameglasses.append(portraits.pop())
+
+    return portrait_frameglasses
+
+def greedy_ordering_optimized(frameglasses):
+    """Order frameglasses greedily with reduced complexity."""
+    ordered = [frameglasses.pop(0)]  # Start with the first frameglass
     total_score = 0
-    portrait_images = []
-    landscape_images = []
-    final_frames = []
 
-    def parse_line(line):
-        """Parse each line into a dictionary."""
+    while frameglasses:
+        best_next = None
+        best_score = -1
+        best_index = -1
+
+        # Precompute similarities only with the last added frameglass
+        for idx, f in enumerate(frameglasses):
+            score = calculate_local_satisfaction(ordered[-1][1], f[1])
+            if score > best_score:
+                best_score = score
+                best_next = f
+                best_index = idx
+
+        # Add the best next frameglass to the ordered list
+        ordered.append(best_next)
+        total_score += best_score
+        frameglasses.pop(best_index)
+
+    return ordered, total_score
+
+def process_paintings(file_path):
+    """Read and process paintings from the input file."""
+    with open(file_path, 'r') as f:
+        lines = f.readlines()
+
+    paintings = []
+    for line in lines[1:]:
         parts = line.strip().split()
-        orientation = parts[0]
-        tags = parts[2:]  # Keep tags as a list for JSON compatibility
-        return {"orientation": orientation, "tags": tags}
+        paintings.append([parts[0], int(parts[1]), *parts[2:]])
 
-    def calculate_local_satisfaction(tags1, tags2):
-        """Calculate Local Robotic Satisfaction between two frames."""
-        set_tags1 = set(tags1)
-        set_tags2 = set(tags2)
-        common_tags = len(set_tags1 & set_tags2)
-        tags_in_1_not_in_2 = len(set_tags1 - set_tags2)
-        tags_in_2_not_in_1 = len(set_tags2 - set_tags1)
-        return min(common_tags, tags_in_1_not_in_2, tags_in_2_not_in_1)
+    landscapes = []
+    portraits = []
 
-    def calculate_global_satisfaction(frames):
-        """Calculate the Global Robotic Satisfaction for a sequence of frames."""
-        global_score = 0
-        for i in range(len(frames) - 1):
-            global_score += calculate_local_satisfaction(frames[i]["tags"], frames[i + 1]["tags"])
-        return global_score
+    for idx, painting in enumerate(paintings):
+        if painting[0] == 'L':
+            landscapes.append(([idx], set(painting[2:])))
+        elif painting[0] == 'P':
+            portraits.append(([idx], set(painting[2:])))
 
-    # Parse input file
-    with open(file_path, 'r') as file:
-        lines = file.readlines()
+    # Pair portraits using the optimized method
+    portrait_frameglasses = pair_portraits_optimized(portraits)
+    landscape_frameglasses = landscapes
 
-        for idx, line in enumerate(lines[1:]):  # Skip the first line (batch count)
-            image = parse_line(line)
-            image["id"] = [idx]  # Ensure ID is a list
-            if image["orientation"] == "P":
-                portrait_images.append(image)
-            elif image["orientation"] == "L":
-                landscape_images.append(image)
+    return portrait_frameglasses + landscape_frameglasses
 
-    # Combine portrait images into frames of two
-    while len(portrait_images) > 1:
-        img1 = portrait_images.pop(0)  # Remove the first portrait
-        img2 = portrait_images.pop(0)  # Remove the next portrait
-        combined_tags = list(set(img1["tags"]) | set(img2["tags"]))  # Union of tags
-        final_frames.append({
-            "id": img1["id"] + img2["id"],  # Combine IDs
-            "orientation": "P",
-            "tags": combined_tags
-        })
-
-    # Add standalone landscape images as frames
-    while len(landscape_images) > 0:
-        img = landscape_images.pop(0)  # Remove the first landscape
-        final_frames.append({
-            "id": img["id"],
-            "orientation": "L",
-            "tags": img["tags"]
-        })
-
-    # Reorder frames to maximize Global Robotic Satisfaction
-    def reorder_frames(frames):
-        sorted_frames = [frames.pop(0)]  # Start with the first frame
-        while frames:
-            best_next_frame = max(frames, key=lambda f: calculate_local_satisfaction(sorted_frames[-1]["tags"], f["tags"]))
-            sorted_frames.append(best_next_frame)
-            frames.remove(best_next_frame)
-        return sorted_frames
-
-    final_frames = reorder_frames(final_frames)
-
-    # Calculate the total Global Robotic Satisfaction
-    total_score = calculate_global_satisfaction(final_frames)
-
+def process_and_output(file_path, output_file_path):
+    """Process input and write the output to a file."""
+    frameglasses = process_paintings(file_path)
+    ordered_frameglasses, max_score = greedy_ordering_optimized(frameglasses)
+    num_frameglasses = len(ordered_frameglasses)
+    
     # Write output to file
-    with open(output_path, 'w') as out_file:
-        frame_count = len(final_frames)  # Count the number of frames
-        out_file.write(f"Global Robotic Satisfaction: {total_score}\n")  # Write the total score
-        out_file.write(f"Number of Frames: {frame_count}\n")  # Write the number of frames
-        for frame in final_frames:
-            frame_id = " ".join(map(str, frame["id"]))  # Join IDs as space-separated strings
-            out_file.write(f"{frame_id}\n")
+    with open(output_file_path, 'w') as f:
+        f.write(f"{max_score}\n")
+        f.write(f"{num_frameglasses}\n")  # Write the number of frameglasses
+        for frameglass in ordered_frameglasses:
+            f.write(' '.join(map(str, frameglass[0])) + '\n')  # Write indices of the paintings
 
-    print(f"Processing completed. Global Robotic Satisfaction: {total_score}, Number of Frames: {frame_count}")
+# Main Function
+def main():
+    # Define input and output file paths
+    input_files = [
+      #  "./Data/0_example.txt",
+        #"./Data/10_computable_moments.txt",
+        "./Data/11_randomizing_paintings.txt",
+     #   "110_oily_portraits.txt"
+    ]
+    output_dir = "output_files"
+    os.makedirs(output_dir, exist_ok=True)
 
-    # Save detailed JSON output
-    json_output_path = output_path.replace('.txt', '.json')
-    with open(json_output_path, 'w') as json_file:
-        json.dump(final_frames, json_file, indent=4)
-    print(f"Detailed JSON written to {json_output_path}")
+    for input_file in input_files:
+        output_file = os.path.join(output_dir, os.path.basename(input_file).replace(".txt", "_output.txt"))
+        process_and_output(input_file, output_file)
+        print(f"Processed {input_file}, output saved to {output_file}")
 
-
-# File paths
-input_file = "./data/10_computable_moments.txt"
-output_file = "output_frames.txt"
-
-# Process the file
-process_large_file(input_file, output_file)
+if __name__ == "__main__":
+    main()
