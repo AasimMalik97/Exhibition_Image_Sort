@@ -1,0 +1,11 @@
+10
+P 1 a b c
+P 2 b c d
+P 3 a d e
+P 4 e f g
+P 5 f g h
+P 6 h i j
+P 7 i j k
+P 8 j k l
+L 9 m n
+L 10 n o

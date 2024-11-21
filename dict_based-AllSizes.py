@@ -1,3 +1,4 @@
+
 from collections import defaultdict
 import heapq
 import numpy as np
@@ -91,6 +92,35 @@ def create_frames_fast(data_dict):
 
     return frames
 
+# Scoring function
+def calculate_score(frames, data_dict):
+    score = 0
+    frame_indices = list(frames.keys())
+    
+    for i in range(len(frame_indices) - 1):
+        frame1 = frames[frame_indices[i]]
+        frame2 = frames[frame_indices[i + 1]]
+        
+        tags1 = combine_tags(frame1, data_dict)
+        tags2 = combine_tags(frame2, data_dict)
+        
+        local_score = min_form_number_of_common_tags(tags1, tags2)
+        score += local_score
+    
+    return score
+
+def combine_tags(frame, data_dict):
+    combined_tags = set()
+    for element in frame:
+        combined_tags.update(data_dict[element]["characteristics"])
+    return combined_tags
+
+def min_form_number_of_common_tags(tags1, tags2):
+    tags_in_tags1_not_in_tags2 = len(tags1 - tags2)
+    tags_in_tags2_not_in_tags1 = len(tags2 - tags1)
+    common_tags = len(tags1 & tags2)
+    return min(tags_in_tags1_not_in_tags2, tags_in_tags2_not_in_tags1, common_tags)
+
 # Reordering method (adjust based on scale if needed)
 def reorder_frames(frames, data_dict):
     def get_frame_characteristics(frame):
@@ -125,25 +155,16 @@ def reorder_frames(frames, data_dict):
     return {index: frames[frame] for index, frame in enumerate(ordered_frames)}
 
 def write_frames_to_file(frames, output_path):
-    """
-    Writes the frames to the output file in the specified format.
-    
-    Parameters:
-    - frames (dict): The dictionary containing frame indices as keys and list of element indices as values.
-    - output_path (str): The path to the output file.
-    """
     with open(output_path, 'w') as file:
         file.write(f"{len(frames)}\n")  # Write the total number of frames
         for frame_index, frame in frames.items():
             frame_keys = " ".join(map(str, frame))  # Convert the frame elements to a space-separated string
-            file.write(frame_keys+"\n")  # Write each frame
-
+            file.write(frame_keys + "\n")  # Write each frame
 
 # Main execution
 def process_file(path, output_path):
     num_rows, data_dict = load_txt_to_dict(path)
 
-    # Select the appropriate algorithm based on the number of rows
     if num_rows < 1000:
         print("Using highly accurate method for small dataset.")
         frames = create_frames_accurate(data_dict)
@@ -154,10 +175,9 @@ def process_file(path, output_path):
         print("Using performance-focused method for large dataset.")
         frames = create_frames_fast(data_dict)  # Fast method prioritizing performance
 
-    # Reorder frames (optional customization for large datasets)
     reordered_frames = reorder_frames(frames, data_dict)
-
-    # Write results to the output file
+    score = calculate_score(reordered_frames, data_dict)
+    print("Global Robotic Satisfaction Score:", score)
     write_frames_to_file(reordered_frames, output_path)
 
 # Example usage
@@ -165,12 +185,7 @@ file_path1 = '../data/1_binary_landscapes.txt' #80 000
 file_path2 = '../data/10_computable_moments.txt' #1 000
 file_path3 = '../data/11_randomizing_paintings.txt' #90 000
 file_path4 = '../data/110_oily_portraits.txt' #80 000
-file_path5 = '../data/11_30000.txt' #30 000
-file_path6 = '../data/1000.txt' #1 000
-file_path7 = '../data/2000.txt' #2 000
-file_path8 = '../data/4000.txt' #4 000
-file_path9 = '../data/8000-p.txt' #8 000
-file_path10 = '../data/15000.txt' #15 000
+
 
 
 
@@ -180,8 +195,6 @@ output_path = '../data/output_frames.txt'  # Path to the output file
 file_path = '../data/example_dataset.txt'
 output_path = '../data/output_frames.txt'
 start = time.time()
-process_file(file_path1, output_path)
-end= time.time()
-print("Execution time  is- ", end-start)
-
-
+process_file(file_path2, output_path)
+end = time.time()
+print("Execution time is:", end - start)
