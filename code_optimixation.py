@@ -282,7 +282,7 @@ class LargeScaleProcessor:
 def main():
     start_time = time.time()
     
-    processor = LargeScaleProcessor('../Data/110_oily_portraits.txt')  # Replace with your input file path
+    processor = LargeScaleProcessor('../Data/1_binary_landscapes.txt')  # Replace with your input file path
     print("Parsing input file...")
     processor.parse_input_file()
     
@@ -302,7 +302,7 @@ def main():
     print(f"Maximum Similarity: {scores['max_similarity']}")
     
     print("\nWriting output...")
-    processor.write_output(sorted_images, "../Data/output110.txt")  # Replace with your output file path
+    processor.write_output(sorted_images, "../Data/output1.txt")  # Replace with your output file path
     
     end_time = time.time()
     print(f"Total time taken: {end_time - start_time:.2f} seconds")
