@@ -7,65 +7,59 @@ def calculate_local_satisfaction(f1, f2):
     f2_diff = len(f2 - f1)
     return min(common, f1_diff, f2_diff)
 
-def pair_portraits_optimized(portraits):
-    """Pair portraits greedily with reduced complexity."""
-    portrait_frameglasses = []
-
-    # Sort portraits by tag set size (heuristic for diverse pairing)
-    portraits = sorted(portraits, key=lambda x: len(x[1]))
-
+def pair_portraits_greedy(portraits):
+    """Greedy strategy to pair portraits for maximizing diversity."""
+    paired = []
     while len(portraits) > 1:
-        # Always pick the smallest portrait (most unique tags)
         p1 = portraits.pop(0)
-
-        # Find the portrait that maximizes diversity with p1
         best_match = None
         best_diversity = -1
-        best_index = -1
 
         for idx, p2 in enumerate(portraits):
             diversity = len(p1[1] | p2[1])  # Union of tags
             if diversity > best_diversity:
                 best_diversity = diversity
-                best_match = p2
-                best_index = idx
+                best_match = (idx, p2)
 
-        # Combine p1 and best_match into a frameglass
-        combined_indices = p1[0] + best_match[0]
-        combined_tags = p1[1] | best_match[1]
-        portrait_frameglasses.append((combined_indices, combined_tags))
+        if best_match:
+            idx, p2 = best_match
+            combined_indices = p1[0] + p2[0]
+            combined_tags = p1[1] | p2[1]
+            paired.append((combined_indices, combined_tags))
+            portraits.pop(idx)
 
-        # Remove the matched portrait
-        portraits.pop(best_index)
+    # Add leftover portraits as single frameglasses
+    paired.extend(portraits)
+    return paired
 
-    # Add any leftover single portrait as a frameglass
-    if portraits:
-        portrait_frameglasses.append(portraits.pop())
-
-    return portrait_frameglasses
-
-def greedy_ordering_optimized(frameglasses):
-    """Order frameglasses greedily with reduced complexity."""
-    ordered = [frameglasses.pop(0)]  # Start with the first frameglass
+def greedy_ordering_with_refinement(frameglasses):
+    """Greedy ordering with local refinement for better scores."""
+    ordered = [frameglasses.pop(0)]
     total_score = 0
 
     while frameglasses:
-        best_next = None
-        best_score = -1
-        best_index = -1
-
-        # Precompute similarities only with the last added frameglass
-        for idx, f in enumerate(frameglasses):
-            score = calculate_local_satisfaction(ordered[-1][1], f[1])
-            if score > best_score:
-                best_score = score
-                best_next = f
-                best_index = idx
-
-        # Add the best next frameglass to the ordered list
-        ordered.append(best_next)
+        similarities = [
+            (calculate_local_satisfaction(ordered[-1][1], f[1]), idx, f)
+            for idx, f in enumerate(frameglasses)
+        ]
+        best_score, best_index, best_frameglass = max(similarities)
+        ordered.append(best_frameglass)
         total_score += best_score
         frameglasses.pop(best_index)
+
+    # Local refinement: Swap neighboring frameglasses for better scores
+    improved = True
+    while improved:
+        improved = False
+        for i in range(1, len(ordered) - 1):
+            current_score = calculate_local_satisfaction(ordered[i - 1][1], ordered[i][1]) + \
+                            calculate_local_satisfaction(ordered[i][1], ordered[i + 1][1])
+            swapped_score = calculate_local_satisfaction(ordered[i - 1][1], ordered[i + 1][1]) + \
+                            calculate_local_satisfaction(ordered[i + 1][1], ordered[i][1])
+            if swapped_score > current_score:
+                ordered[i], ordered[i + 1] = ordered[i + 1], ordered[i]
+                total_score += swapped_score - current_score
+                improved = True
 
     return ordered, total_score
 
@@ -88,8 +82,8 @@ def process_paintings(file_path):
         elif painting[0] == 'P':
             portraits.append(([idx], set(painting[2:])))
 
-    # Pair portraits using the optimized method
-    portrait_frameglasses = pair_portraits_optimized(portraits)
+    # Pair portraits using greedy strategy
+    portrait_frameglasses = pair_portraits_greedy(portraits)
     landscape_frameglasses = landscapes
 
     return portrait_frameglasses + landscape_frameglasses
@@ -97,12 +91,12 @@ def process_paintings(file_path):
 def process_and_output(file_path, output_file_path):
     """Process input and write the output to a file."""
     frameglasses = process_paintings(file_path)
-    ordered_frameglasses, max_score = greedy_ordering_optimized(frameglasses)
+    ordered_frameglasses, max_score = greedy_ordering_with_refinement(frameglasses)
     num_frameglasses = len(ordered_frameglasses)
     
     # Write output to file
     with open(output_file_path, 'w') as f:
-        f.write(f"{max_score}\n")
+        f.write(f"{max_score}\n")  # Write the total score
         f.write(f"{num_frameglasses}\n")  # Write the number of frameglasses
         for frameglass in ordered_frameglasses:
             f.write(' '.join(map(str, frameglass[0])) + '\n')  # Write indices of the paintings
@@ -111,10 +105,11 @@ def process_and_output(file_path, output_file_path):
 def main():
     # Define input and output file paths
     input_files = [
-      #  "./Data/0_example.txt",
+        #"0_example.txt",
         #"./Data/10_computable_moments.txt",
-        "./Data/11_randomizing_paintings.txt",
-     #   "110_oily_portraits.txt"
+      #"./Data/11_randomizing_paintings.txt",
+      #  "110_oily_portraits.txt"
+      "./Data/1_binary_landscapes.txt",
     ]
     output_dir = "output_files"
     os.makedirs(output_dir, exist_ok=True)
