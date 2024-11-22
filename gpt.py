@@ -1,23 +1,11 @@
 import os
 import heapq
 
-# Global dictionary to map tags to unique indices
-tag_to_index = {}
-
-def tags_to_bitmask(tags):
-    """Convert a set of tags (strings) to a bitmask representation."""
-    bitmask = 0
-    for tag in tags:
-        if tag not in tag_to_index:
-            tag_to_index[tag] = len(tag_to_index)  # Assign a new index to the tag
-        bitmask |= 1 << tag_to_index[tag]  # Set the bit corresponding to the tag index
-    return bitmask
-
 def calculate_local_satisfaction(f1, f2):
-    """Calculate the Local Robotic Satisfaction using bitwise operations."""
-    common = bin(f1 & f2).count('1')  # Count common bits
-    f1_diff = bin(f1 & ~f2).count('1')  # Count bits in f1 not in f2
-    f2_diff = bin(f2 & ~f1).count('1')  # Count bits in f2 not in f1
+    """Calculate the Local Robotic Satisfaction between two frameglasses."""
+    common = len(f1 & f2)
+    f1_diff = len(f1 - f2)
+    f2_diff = len(f2 - f1)
     return min(common, f1_diff, f2_diff)
 
 def pair_portraits_optimized(portraits):
@@ -28,7 +16,7 @@ def pair_portraits_optimized(portraits):
     # Precompute all possible pair diversities and store in a heap
     for i in range(len(portraits)):
         for j in range(i + 1, len(portraits)):
-            diversity = bin(portraits[i][1] | portraits[j][1]).count('1')  # Count set bits in union
+            diversity = len(portraits[i][1] | portraits[j][1])  # Union of tags
             heapq.heappush(heap, (-diversity, i, j))  # Max heap using negative diversity
 
     paired = set()
@@ -54,11 +42,13 @@ def greedy_ordering_optimized(frameglasses):
     total_score = 0
 
     while frameglasses:
+        # Precompute similarities with the current frameglass
         similarities = [
             (calculate_local_satisfaction(ordered[-1][1], f[1]), idx, f)
             for idx, f in enumerate(frameglasses)
         ]
 
+        # Pick the best next frameglass
         best_score, best_index, best_frameglass = max(similarities)
         ordered.append(best_frameglass)
         total_score += best_score
@@ -74,17 +64,16 @@ def process_paintings(file_path):
     paintings = []
     for line in lines[1:]:
         parts = line.strip().split()
-        tag_mask = tags_to_bitmask(parts[2:])  # Convert tags to a bitmask
-        paintings.append([parts[0], int(parts[1]), tag_mask])
+        paintings.append([parts[0], int(parts[1]), *parts[2:]])
 
     landscapes = []
     portraits = []
 
     for idx, painting in enumerate(paintings):
         if painting[0] == 'L':
-            landscapes.append(([idx], painting[2]))
+            landscapes.append(([idx], set(painting[2:])))
         elif painting[0] == 'P':
-            portraits.append(([idx], painting[2]))
+            portraits.append(([idx], set(painting[2:])))
 
     # Pair portraits using the optimized method
     portrait_frameglasses = pair_portraits_optimized(portraits)
@@ -109,10 +98,7 @@ def process_and_output(file_path, output_file_path):
 def main():
     # Define input and output file paths
     input_files = [
-       # "0_example.txt",
-      # "./Data/10_computable_moments.txt",
-        "./Data/11_randomizing_paintings.txt",
-       # "110_oily_portraits.txt"
+       "./Data/11_randomizing_paintings.txt",
     ]
     output_dir = "output_files"
     os.makedirs(output_dir, exist_ok=True)
