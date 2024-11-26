@@ -115,39 +115,76 @@ class LargeScaleProcessor:
         }
 
     def find_optimal_portrait_pairs(self) -> None:
-        """Optimized pairing for large datasets"""
+        """Greedily pair portrait images, each with the most similar next available image, ensuring no image is paired with itself."""
         if len(self.portrait_images) < 2:
             return
 
         print(f"Processing {len(self.portrait_images)} portrait images...")
-        
-        # Use batch processing for large datasets
-        batch_size = 1000  # Process 1000 images at a time
-        paired_images = []
-        used_indices = set()
-        
-        for batch_start in tqdm(range(0, len(self.portrait_images), batch_size), desc="Processing batches"):
-            batch_end = min(batch_start + batch_size, len(self.portrait_images))
-            current_batch = self.portrait_images[batch_start:batch_end]
-            
-            # Find best pairs within the current batch
-            batch_pairs = self._find_batch_pairs(current_batch, batch_start)
-            
-            # Add paired images
-            for i, j, _ in batch_pairs:
-                if i not in used_indices and j not in used_indices:
-                    merged = self.portrait_images[i].merge_with(self.portrait_images[j])
-                    paired_images.append(merged)
-                    used_indices.update([i, j])
-        
-        # Handle remaining unpaired images
-        for i in range(len(self.portrait_images)):
-            if i not in used_indices:
-                paired_images.append(self.portrait_images[i])
-        
-        self.frame_portrait_images = paired_images
-        print(f"Created {len(paired_images)} paired/single images")
 
+        # Precompute candidates for each image based on shared tags
+        self._build_indices(self.portrait_images)
+        similarity_cache = {}
+
+        used_indices = set()  # Track images already paired
+        paired_images = []
+
+        # Use a min-heap for pairing by least common similarity
+        heap = []
+
+        # Generate initial pairs for all unpaired images
+        for i in range(len(self.portrait_images)):
+            if i in used_indices:
+                continue
+            
+            print(f"Processing image {i}...")
+
+            img1 = self.portrait_images[i]
+            # Generate candidates
+            candidates = self._get_candidates(img1, set(range(len(self.portrait_images))) - used_indices)
+
+            for j in candidates:
+                if j in used_indices:
+                    continue
+
+                # Check if similarity score is already calculated
+                cache_key = (i, j)
+                if cache_key not in similarity_cache:
+                    similarity = self.calculate_similarity(img1, self.portrait_images[j])
+                    similarity_cache[cache_key] = similarity
+                else:
+                    similarity = similarity_cache[cache_key]
+
+                if similarity > 0:
+                    heapq.heappush(heap, (-similarity, i, j))  # Use the negative similarity for max-heap simulation
+
+        start_time = time.time()
+        while heap and len(used_indices) < len(self.portrait_images):
+            # If the process takes more than 5 minutes, we should stop
+            if time.time() - start_time > 300:
+                print("Timeout reached. Stopping early.")
+                break
+
+            # Extract the most similar pair from the heap
+            similarity, i, j = heapq.heappop(heap)
+
+            # Ensure that we do not pair an image with itself and both images are unpaired
+            if i != j and i not in used_indices and j not in used_indices:
+                # Merge the best pair
+                merged = self.portrait_images[i].merge_with(self.portrait_images[j])
+                paired_images.append(merged)
+
+                # Mark both images as used
+                used_indices.update([i, j])
+
+                # Remove processed pairs from the heap
+                for k in list(heap):
+                    if k[1] == i or k[2] == j:  # Remove pairs where either image is already used
+                        heap.remove(k)
+                heapq.heapify(heap)  # Rebalance heap after removal
+
+        self.frame_portrait_images = paired_images
+        print(f"Created {len(paired_images)} paired images (expected: {len(self.portrait_images) // 2})")
+    
     def _find_batch_pairs(self, batch: List[ImageData], offset: int) -> List[Tuple[int, int, float]]:
         """Find optimal pairs within a batch"""
         pairs = []
@@ -287,7 +324,7 @@ def main():
     start_time = time.time()
     
     # Initialize processor
-    processor = LargeScaleProcessor('../Data/11_randomizing_paintings.txt')
+    processor = LargeScaleProcessor('../Data/1_binary_landscapes.txt')
     
     # Execute pipeline with memory monitoring
     print("Starting processing pipeline...")
@@ -304,7 +341,7 @@ def main():
     
     processor.calculate_final_score(sorted_images)
     
-    processor.write_output(sorted_images, '../Data/output11.txt')
+    processor.write_output(sorted_images, '../Data/output1.txt')
     
     total_time = time.time() - start_time
     print(f"\nProcessing completed in {total_time:.2f} seconds")
